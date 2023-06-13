@@ -18,6 +18,26 @@ From the diagram, there are inputs and outputs to data warehouse.
     - For Analysis, It could be better to have data into data marts.
     - For data scientist, It could be better to deal with data in its Raw format.
     - So data warehouse support all these possiblities in data.
+### Star Schema
+Star Schema in data warehouse, in which the center of the star can have one fact table and a number of associated dimension tables. It is known as star schema as its structure resembles a star. The Star Schema data model is the simplest type of Data Warehouse schema. It is also known as Star Join Schema and is optimized for querying large data sets.
+
+In the following Star Schema example, the fact table is at the center which contains keys to every dimension table like Dealer_ID, Model ID, Date_ID, Product_ID, Branch_ID & other attributes like Units sold and 
+revenue.
+
+![start schema](https://www.guru99.com/images/1/022218_0758_StarandSnow1.png)
+
+### Snowflake Schema
+Snowflake Schema in data warehouse is a logical arrangement of tables in a multidimensional database such that the ER diagram resembles a snowflake shape. A Snowflake Schema is an extension of a Star Schema, and it adds additional dimensions. The dimension tables are normalized which splits data into additional tables.
+
+In the following Snowflake Schema example, Country is further normalized into an individual table.
+
+![snowflake Schema](https://www.guru99.com/images/1/022218_0758_StarandSnow2.png)
+
+### Normalized vs Denormalized Data
+![normalized vs denormalized](https://i.ytimg.com/vi/vRqzFBTgGJA/maxresdefault.jpg)
+
+### Comparison
+![comparison](https://github.com/AhmedYousriSobhi/ATmega-16-BOOTLOADER/assets/66730765/96bb20d5-e798-4cbe-85f3-3ae80d8e8b4d)
 
 ## BigQuery
 It is Data warehouse solution, but thery are __serverless data warehouse__, There are no servers to manage or database software to install.
