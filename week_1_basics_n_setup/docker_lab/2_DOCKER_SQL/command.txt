@@ -1,0 +1,200 @@
+# To create postgres socket
+docker run -it \
+    -e POSTGRES_USER="root" \
+    -e POSTGRES_PASSWORD="root" \
+    -e POSTGRES_DB="ny_taxi" \
+    -v $(pwd)/ny_taxi_postgres_data:/var/lib/posgresql/data \
+    -p 5432:5432 \
+    postgres:13
+
+Note: To kill used port
+    In terminal: sudo apt-get install dsniff
+    In terminal: sudo tcpkill -9 port <number>
+
+
+Explaination:
+-e: Used to define ENVIRONMENT variables and set their values.
+POSTGRES_DB: We define the name of DB, User choise for naming.
+-v: Used to move files from directory in local host machine to docker container machine.
+-p: Map port from local host to docker host.
+postgres:13 : the image of postgress
+
+To access postgres database to run queries:
+Using pgcli command line for postgress
+    pgcli -h localhost -p 5432 -u root -d ny_taxi
+
+Command: \dt to check schema
+
+
+Download nyc_taxi data from website: https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet
+You can simply choose the year and month you like, then copy its URL, then in terminal -> wget URL
+For data dictionary to understand each column: https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_yellow.pdf
+
+
+In case of CSV dataset:
+To view some of the data: 
+    In terminal: less file.csv
+To view n head rows:
+    In terminal: head -n 100 file.csv
+To save first 100 rows into another csv file:
+    In terminal: head -n 100 sourceFile.csv -> destFile.csv
+To count how many rows: 
+    In terminal: wc -l file.csv
+    wc: word count
+    -l: Stands for line counting.
+
+# The data is now in parquet format instead of CSV, because parquet is more faster in case of dealing with large data.
+TO interact with parquet in terminal, to view first n rows.
+Step#1: install required package -> 
+    Install parquet-tools:
+        Ubuntu/Debian: Run sudo apt-get install parquet-tools.
+        CentOS/RHEL: Run sudo yum install parquet-tools.
+    Note: In case parquet-tools error appeared that package is not found, replace it with -> pip install parquet-tools
+    Once parquet-tools is installed, you can use the parquet-tools command-line tool to interact with the Parquet file.
+
+Step#2: The dataset is enourmously big, so let's only take first 100 rows for example.
+To check the first n lines of a Parquet file, follow these steps:
+1- Open the terminal.
+2- Navigate to the directory where your Parquet file is located using the cd command. For example:
+        In terminal: cd /path/to/parquet/files
+3- Run the following command to display the first n lines of the Parquet file:
+        In terminal: parquet-tools show --head <n> <parquet_file>
+    Replace <n> with the number of lines you want to display (e.g., 10), and <parquet_file> with the name of your Parquet file.
+    For example, to display the first 10 lines of a file named data.parquet, you would run:
+        In terminal: parquet-tools head -n 10 data.parquet
+    The command will display the specified number of lines from the Parquet file on the terminal.
+    To Store first 100 rows in another parquet file:
+        In terminal: parquet-tools head -n 10 source_data.parquet -> dest_data.parquet
+
+
+Instead of using pgcli, we could use pgAdmin.
+Instead of installing pgAdmin, we could use docker container pgAdmin.
+Docker container - in terminal: docker pull dpage/pgadmin4
+But we need to specify ENVIRONMENT arguments first!
+In terminal: 
+    docker run -it \
+        -e PGADMIN_DEFAULT_EMAIL="admin@admin.com" \
+        -e PGADMIN_DEFAULT_PASSWORD="root" \
+        -p 8080:80 \
+        dpage/pgadmin4
+
+
+Problem we face that, Each container does not see the other, so accordingly the pgadmin container does not see the postgres database container.
+So we need to create a Docker network.
+Steps:
+1- Stop all the containers.
+2- Create a docker network.
+    In terminal: docker network create <network_name>
+    example: docker network create pg_network
+3- Re define postgress container.
+    docker run -it \
+        -e POSTGRES_USER="root" \
+        -e POSTGRES_PASSWORD="root" \
+        -e POSTGRES_DB="ny_taxi" \
+        -v $(pwd)/ny_taxi_postgres_data:/var/lib/posgresql/data \
+        -p 5432:5432 \
+        --network=pg_network \
+        --name pg-database \
+        postgres:13
+4- Re define pdadmin container.
+    docker run -it \
+        -e PGADMIN_DEFAULT_EMAIL="admin@admin.com" \
+        -e PGADMIN_DEFAULT_PASSWORD="root" \
+        -p 8080:80 \
+        --network=pg_network \
+        --name pgadmin \
+        dpage/pgadmin4
+    Note: name is important for postgres, as we need to connect to postgres, but not important for pgadmin.
+    Note: to remove used dockers: docker rm <docker_name>
+
+
+### NEW Lecture: Data Ingesting script
+
+# Creating a script for ingesting the data into postgress
+url = "https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"
+    python ingest_data.py \
+        --user=root \
+        --password=root \
+        --host=localhost \
+        --port=5432 \
+        --db=ny_taxi \
+        --table_name=yellow_taxi_data \
+        --url="https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet" \
+        --format=parquet
+
+
+# To dockerise this process
+docker build -t taxi_ingest:v001 .
+
+# Then let's run the docker
+docker run -it \
+    --network=pg_network \
+    taxi_ingest:v001 \
+        --user=root \
+        --password=root \
+        --host=pg-database \
+        --port=5432 \
+        --db=ny_taxi \
+        --table_name=yellow_taxi_data \
+        --url="https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet" \
+        --format=parquet
+
+
+# New Lecture:
+Using Docker Compose, to automate all of these.
+Installation of docker compose:
+Source: https://stackoverflow.com/questions/72299444/docker-desktop-doesnt-install-saying-docker-ce-cli-not-installable
+    First download depenancies:
+        sudo apt install -y ca-certificates curl gnupg lsb-release
+        sudo mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt update -y
+    Second Install deb file: https://docs.docker.com/desktop/install/ubuntu/
+        sudo apt install ./docker-desktop-<version>-<arch>.deb
+
+To install docker-compose:
+    - sudo snap install docker
+    - sudo apt install docker-compose
+Steps: 
+1- Write the docker-compose.yaml file, that includes teh services.
+2- Stop any running docker containers.
+3- In terminal run: docker-compose up
+    This will install the two images.
+4- To shut down the docker-compose: docker-compuse down
+5- Note: You can run in detach mode: docker-compose up -d
+    In this mode the terminal will not be in use, but to close each image, you have to run step#4
+
+
+To ingest data again into table
+Changes to make:
+1)  --network=pg-network
+Into: --network=2_docker_sql_default
+(My guess why this works is b/c when you set up the compose, we didn't specify network name, so we are using the default name)
+
+2) --host=pg-database
+Into: --host=pgdatabase
+(In compose, the name we set for the service is also the host name )
+Updated:
+    docker run -it \
+        --network=2_docker_sql_default \
+        taxi_ingest:v001 \
+            --user=root \
+            --password=root \
+            --host=pgdatabase \
+            --port=5432 \
+            --db=ny_taxi \
+            --table_name=yellow_taxi_data \
+            --url="https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet" \
+            --format=parquet
+
+6- To start docker again, and not to create it from scratch, so the data table will still not removed.
+    docker-compose start
+
+Troubleshooting:
+    - Found out when using docker-compose up again, that we error apeared saying:
+        For pdadmin  Cannot start service pdadmin: network existing_docker_network not found
+    To solve:
+        docker container ls -> to get all listed containers.
+        Remove them by ID using:
+        docker container rm <id>
